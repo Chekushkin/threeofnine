@@ -24,10 +24,12 @@ ARR_MOTH = [
   'декабря Декабрь'
 ].freeze
 
-NBSP  = Nokogiri::HTML('&nbsp;').text
+EMAIL    = YAML.load_file(__dir__ + '/../config/secrets.yml')['email']
+PASSWORD = YAML.load_file(__dir__ + '/../config/secrets.yml')['password']
+
+NBSP = Nokogiri::HTML('&nbsp;').text
 # NOTE: ads should be in short description view
-uri   = 'https://999.md/ru/list/clothes-and-shoes/watches?applied=1&view_type=short&ef=2013&ef=2017&ef=2019&o_2013_1=776&query=apple+watch+3&o_2017_620=18910'
-html  = Nokogiri::HTML(open(uri))
+html  = Nokogiri::HTML(open(ARGV[0]))
 redis = Redis.new
 data  = {}
 
@@ -67,24 +69,19 @@ end.each_with_index do |item, index|
   data[index][:price] = item.css('td.ads-list-table-price').text
   hash                = Digest::MD5.hexdigest(Marshal.dump(data[index][:name] + data[index][:name]))
 
-  if redis.get(hash)
-    puts 'already parsed'
-    next
-  else
-    redis.set(hash, '1')
-  end
+  next if redis.get(hash)
+  redis.set(hash, '1')
 
-  counter += 1
-  return if counter > 3
-
+  next if item.at_css('a')['href'][/booster/]
   html = Nokogiri::HTML(Net::HTTP.get(URI("https://999.md#{item.at_css('a')['href']}")))
-
   puts html.css('dd').detect { |dd| dd.text.match(/^\d{1,2}/) }.text.split(',').first
   date = Date.strptime(convert(html.css('dd').detect { |dd| dd.text.match(/^\d{1,2}\s/) }.text.split(',').first.delete('.')), '%d %m %Y')
 
+  counter += 1
+  return if counter > 3
+  next if date < 1.week.ago.to_date
   puts "https://999.md#{item.at_css('a')['href']}"
   puts date.to_s
-  next if date < 1.month.ago.to_date
 
   data[index][:url]  = "https://999.md#{item.at_css('a')['href']}"
   body               = html.css('div.adPage__content__description.grid_18').text
@@ -116,8 +113,8 @@ end.each_with_index do |item, index|
     address:              'smtp.gmail.com',
     port:                 587,
     domain:               'your.host.name',
-    user_name:            'ed********@gmail.com',
-    password:             '*******',
+    user_name:            EMAIL,
+    password:             PASSWORD,
     authentication:       'plain',
     enable_starttls_auto: true
   }
@@ -128,9 +125,9 @@ end.each_with_index do |item, index|
 
   b    = binding
   mail = Mail.new do
-    to('ed********@gmail.com')
-    from('ed********@test.com')
-    subject(data[index][:name] + '999ads')
+    to(EMAIL)
+    from(EMAIL)
+    subject(data[index][:name] + ' 999 ads')
   end
 
   html_part = Mail::Part.new do
