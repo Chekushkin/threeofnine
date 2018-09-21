@@ -74,14 +74,17 @@ end.each_with_index do |item, index|
 
   next if item.at_css('a')['href'][/booster/]
   html = Nokogiri::HTML(Net::HTTP.get(URI("https://999.md#{item.at_css('a')['href']}")))
-  puts html.css('dd').detect { |dd| dd.text.match(/^\d{1,2}/) }.text.split(',').first
+  # puts html.css('dd').detect { |dd| dd.text.match(/^\d{1,2}/) }.text.split(',').first
   date = Date.strptime(convert(html.css('dd').detect { |dd| dd.text.match(/^\d{1,2}\s/) }.text.split(',').first.delete('.')), '%d %m %Y')
 
+  data[index][:price] = parse_description(html.at_css('ul.adPage__content__price-feature__prices').text)
+  next if data[index][:price][/договорная/i]
+  # NOTE: updating price to get convertion rates
   counter += 1
-  return if counter > 3
+  break if counter > 3
   next if date < 1.week.ago.to_date
-  puts "https://999.md#{item.at_css('a')['href']}"
-  puts date.to_s
+  # puts "https://999.md#{item.at_css('a')['href']}"
+  # puts date.to_s
 
   data[index][:url]  = "https://999.md#{item.at_css('a')['href']}"
   body               = html.css('div.adPage__content__description.grid_18').text
